@@ -13,7 +13,7 @@
 
 **Boundary.** This spec governs the chat notice sent to a customer when the **handler** of their service ticket is set or changes. It covers restore service tickets on every creation path — IVR, customer chat and Kapture-direct alike — and it is the customer's only new surface: the chat thread.
 
-It leaves unchanged: how a ticket is created, classified, deadlined, verified or closed; the CSP app and the actions in it; the existing CSP-side and technician-side notifications that already fire on the same events; the complaint chat intake gates and the resolution message the customer already receives. The shifting task family is out of scope. Notices reach customers on app version C-01 and above; below that the customer sees nothing new, and this spec does not add another channel to reach them (M1's ceiling, not a defect).
+It leaves unchanged: how a ticket is created, classified, deadlined, verified or closed; the CSP app and the actions in it; the existing CSP-side and technician-side notifications that already fire on the same events; the complaint chat intake gates and the resolution message the customer already receives. The masked-calling PIN workflow is reused unchanged: this spec decides when it fires, never what it says (§4 bubble 2). The shifting task family is out of scope. Notices reach customers on app version C-01 and above; below that the customer sees nothing new, and this spec does not add another channel to reach them (M1's ceiling, not a defect).
 
 ### Guardrails — promises that hold on every path
 
@@ -138,20 +138,26 @@ Copy in production, one language per customer, not both:
 |---|---|---|
 | Field — ticket id | the service ticket the notice belongs to | Always shown, so a customer with more than one open ticket can tell them apart. |
 | Field — body copy | fixed copy above | Identical on T1, T2 and T3 — first notice, technician swap and recall read the same (R2b). **Names no one**: the assignee is carried on bubble 3, not here. |
-| Check — language | customer's language preference | One variant is sent, never both. ⚠️ *AI GENERATED — review* |
+| Check — language | customer's language preference | One variant is sent, never both. |
 
 ### Bubble 2 — PIN message (cohort only)
+
+**This spec does not define this message.** It is the live masked-calling workflow, already in
+production and already sent by the create-ticket flow. This feature triggers it, unchanged, on
+every handler notice where masked calling is available. Its copy, its PIN and its behaviour are
+owned by that workflow, not here (§1 Boundary).
 
 **States:** sent (masked calling available for this ticket — R3b) · not sent (unavailable — R3c)
 **Freshness:** sent with bubble 3, immediately after bubble 1.
 
-> **Hindi** — इंजीनियर से कनेक्ट करने के लिए कॉल के वक़्त PIN पूछा जा सकता है। आपका PIN: `<pin>`
->
-> **English** — You may be asked for a PIN during the call to connect you to the engineer. Your PIN: `<pin>` ⚠️ *AI GENERATED — review*
+Illustrative only — what that workflow sends today, quoted so the reader knows what the customer
+sees between bubbles 1 and 3:
+
+> इंजीनियर से कनेक्ट करने के लिए कॉल के वक़्त PIN पूछा जा सकता है। आपका PIN: `<pin>`
 
 | Element | Source / Routes to | Logic |
 |---|---|---|
-| Field — PIN | masked-call response for this ticket | Shown only when masked calling resolved (R3b). Re-sent on every notice, including a swap (T3). |
+| Trigger — masked-call workflow | the existing live workflow, invoked per ticket | Invoked on every notice where masked calling resolved (R3b), including a swap (T3). This spec owns *when* it fires; the workflow owns what it says. |
 
 ### Bubble 3 — contact card
 
@@ -238,7 +244,7 @@ Worked data used throughout: customer **Sunita Devi**, account `WN4471203`, tick
 | AC-CTA-3 | **Given** masked calling is not available and Ramesh Kumar takes ticket 1787745414303000 himself, **When** the notice is sent, **Then** the card names Ramesh Kumar and dials Ramesh Kumar's own number — the assignee is the CSP in this case, and the card is truthful either way. | R3c · R3a · G6 · T1 | Settled |
 | AC-CTA-4 | **Given** neither masked calling nor any direct number resolves for Imran Sheikh, **When** he is assigned, **Then** the handler notice is still sent and **no card is sent at all** — the customer is never shown a call action that cannot connect. | R3d · R3 MUST NOT (a) · G2 · T2 | Settled |
 | AC-CTA-5 | **Given** Imran Sheikh's name cannot be resolved but his number can, **When** he is assigned, **Then** the notice is sent unchanged and the card is sent with a working call action and no name — Ramesh Kumar's name does not appear on it. | R5a · R5 MUST NOT · T2 | Settled |
-| AC-CTA-6 | **Given** Sunita's language preference is Hindi, **When** Imran is assigned, **Then** she receives the Hindi copy only, and the English variant is not also sent. | §4 bubble 1 | Settled ⚠️ *AI GENERATED — review* |
+| AC-CTA-6 | **Given** Sunita's language preference is Hindi, **When** Imran is assigned, **Then** she receives the Hindi copy only, and the English variant is not also sent. | §4 bubble 1 | Settled |
 
 ### WF — Workflows
 
@@ -323,7 +329,7 @@ What the platform must be able to do for this feature to exist. Whether these ar
 | Remember, per ticket, which person the customer was last told about, and compare a new handler against it. | T4 · R4a · R4b · G4 |
 | Resolve the assignee's display name **and their own direct number** from their identifier at send time — the same lookup for a CSP and for a technician — and proceed without a name when it cannot be resolved. | R3c · R5a · G6 · T1 · T2 · T3 |
 | Read those details only from the live gateway CSP user record — never from `t_account_mapping1`. | G3 · AC-GRD-1 |
-| Request a masked-call route and PIN for a ticket, and tell whether masked calling is available for it. | R3b · C-04 |
+| Trigger the existing masked-calling workflow for a ticket, and tell whether masked calling is available for it. The workflow itself is reused, not rebuilt. | R3b · C-04 |
 | Push an unprompted message into a customer's chat thread, keyed to their account, for any customer on app version C-01 or above, whatever channel their ticket came from — in the customer's own language. | R1b · T1 · T2 · T3 · C-01 |
 | Send a contact card carrying a name and a call action, and re-send a fresh one whenever the assignee changes. | R3a · G1 · G6 · T3 |
 | Record, per notice, whether it was delivered, suppressed as a duplicate, or failed — and which call route and contact source it carried. | MQ-1 · MQ-2 · MQ-3 · MQ-4 |
@@ -344,9 +350,6 @@ What the platform must be able to do for this feature to exist. Whether these ar
 | §5 C-03 | Maximum handler notices per ticket, default no cap | You chose no suppression, so "no cap" matches your decision; the parameter exists so a runaway reassign loop can be capped without a code change. Delete it if you would rather have no cap at all. |
 | §5 — Interaction note (C-03 × G4) | Suppressed duplicates do not consume the cap | Follows from C-03 existing; unstated by you. |
 | §7 AC-CFG-2 | Behaviour when C-03 is reached | Exists only because C-03 was generated. Falls with it if you drop C-03. |
-| §4 bubble 1 — language check | One language variant is sent per customer, not both | You supplied Hindi and English copy as two screenshots. Assumed they are variants selected by customer preference rather than two messages. Confirm the selection source. |
-| §4 bubble 2 — English PIN copy | "You may be asked for a PIN during the call to connect you to the engineer. Your PIN: `<pin>`" | You supplied the Hindi PIN copy only. This is a translation of it, not production copy — replace it with the real English string. |
-| §7 AC-CTA-6 | Language AC | Exists only because the language check was inferred. Falls with it. |
 
 ---
 
