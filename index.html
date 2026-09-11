@@ -4,12 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Service Ticket Handler Notice — PRD</title>
+<!-- Both loaded as blocking classic scripts, so they are guaranteed present before the
+     inline script below runs. Mermaid's ESM build is a stub that pulls its chunks
+     asynchronously, which raced the markdown fetch and silently left diagrams unrendered. -->
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-<script type="module">
-  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs';
-  mermaid.initialize({ startOnLoad: false, theme: 'neutral', flowchart: { htmlLabels: true, curve: 'basis' } });
-  window.__mermaidRender = () => mermaid.run({ querySelector: '.mermaid' });
-</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 <style>
   :root {
     --bg: #fafaf9; --surface: #ffffff; --ink: #1a1a1a; --muted: #6b6b6b; --faint: #9a9a96;
@@ -98,7 +97,23 @@
   td:first-child code, th:first-child { white-space: nowrap; }
 
   /* ---- diagrams ---- */
-  .mermaid { text-align: center; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 18px; margin: 16px 0; overflow-x: auto; }
+  /* Default styling is the un-rendered state: legible diagram source, not centred prose.
+     .is-drawn is added once mermaid has actually replaced the text with SVG. */
+  .mermaid {
+    background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px;
+    padding: 14px 16px; margin: 16px 0; overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px; line-height: 1.5; white-space: pre; text-align: left;
+  }
+  .mermaid.is-drawn {
+    background: var(--surface); padding: 18px; text-align: center;
+    font-family: inherit; font-size: inherit; white-space: normal;
+  }
+  .diagram-note {
+    font-size: 12px; color: var(--flag); background: var(--flag-wash);
+    border: 1px solid var(--flag-rule); border-radius: 5px;
+    padding: 7px 11px; margin: 16px 0 -8px;
+  }
 
   /* ---- semantic highlights, derived from the markdown ---- */
   .aiflag {
@@ -177,6 +192,38 @@
 
   marked.setOptions({ gfm: true, breaks: false, headerIds: false, mangle: false });
 
+  var hasMermaid = typeof window.mermaid !== 'undefined';
+  if (hasMermaid) {
+    window.mermaid.initialize({ startOnLoad: false, theme: 'neutral', flowchart: { htmlLabels: true, curve: 'basis' } });
+  }
+
+  // Draw every staged diagram. A diagram that cannot be drawn keeps its source visible
+  // rather than disappearing — an unrendered chart must never look like a missing one.
+  function drawDiagrams() {
+    var slots = contentEl.querySelectorAll('.mermaid');
+    if (!slots.length) return;
+    if (!hasMermaid) { noteDiagrams('The diagram library did not load, so the flow chart below is shown as its source.'); return; }
+    window.mermaid.run({ querySelector: '.mermaid', suppressErrors: true })
+      .then(function () {
+        var drawn = 0;
+        contentEl.querySelectorAll('.mermaid').forEach(function (el) {
+          if (el.querySelector('svg')) { el.classList.add('is-drawn'); drawn++; }
+        });
+        if (drawn < slots.length) noteDiagrams('A diagram could not be drawn, so its source is shown instead.');
+      })
+      .catch(function () { noteDiagrams('The diagram could not be drawn, so its source is shown instead.'); });
+  }
+
+  function noteDiagrams(msg) {
+    contentEl.querySelectorAll('.mermaid').forEach(function (el) {
+      if (el.classList.contains('is-drawn') || el.previousElementSibling && el.previousElementSibling.classList.contains('diagram-note')) return;
+      var n = document.createElement('div');
+      n.className = 'diagram-note';
+      n.textContent = msg;
+      el.parentNode.insertBefore(n, el);
+    });
+  }
+
   function slug(s) {
     return s.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').slice(0, 60);
   }
@@ -206,7 +253,7 @@
 
     decorate(md);
     buildToc();
-    if (window.__mermaidRender) window.__mermaidRender();
+    drawDiagrams();
   }
 
   function decorate(md) {
