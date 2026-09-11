@@ -288,7 +288,11 @@
     push('Version', grab('Version'));
     push('Owner', grab('Owner'));
     push('Sign-off', grab('Sign-off'));
-    if (flags) pills.push('<span class="pill warn"><b>' + flags + '</b> items awaiting your review</span>');
+    // The worklist is the review table's rows, not the inline marker count —
+    // several markers (the header's Consulted cells) legitimately share one row.
+    var section = md.split(/^## AI-generated content for review\s*$/m)[1];
+    var rows = section ? (section.split(/^## /m)[0].match(/^\|(?!\s*-)(?!\s*Location)/gm) || []).length : 0;
+    if (rows) pills.push('<span class="pill warn"><b>' + rows + '</b> to review · ' + flags + ' marked in text</span>');
     var ov = (md.match(/^\|\s*L\d[^|]*\|/gm) || []).length;
     if (ov) pills.push('<span class="pill warn"><b>' + ov + '</b> recorded override' + (ov > 1 ? 's' : '') + '</span>');
 
