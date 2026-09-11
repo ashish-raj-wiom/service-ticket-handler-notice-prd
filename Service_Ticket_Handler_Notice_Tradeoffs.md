@@ -9,7 +9,7 @@ Every row is a decision Ashish made against presented options.
 | 2 | Delivery surface | Customer app chat, for every ticket regardless of creation channel | Chat only for chat-originated tickets; chat + WhatsApp/SMS fallback; chat now, other channels as V2 | "For all the service tickets where CSP assigns someone to work on it, irrespective of from where the ticket is created." | 11 Sep 2026 |
 | 3 | Message volume, given 72% of tickets close within 5 min of the first progress event | Send everything, no suppression | Hold briefly and drop if resolution beats it; one message updated in place; only message tickets past an age threshold | Chose full transparency over noise reduction. | 11 Sep 2026 |
 | 4 | What the chat tells the customer | Technician assigned + name + calling CTA; PIN where the CSP is in the IVR masked-calling cohort | Name without contact; no person named; name plus deadline/ETA | Reassurance plus a way to reach the person, without committing to a deadline the two systems disagree about. | 11 Sep 2026 |
-| 5 | Call route outside the masked-calling cohort | The **assignee's own** direct number — the technician's when one is assigned, the CSP's when he took it himself | No CTA; fall back to the call centre; hold the message until a PIN exists | Chose reach over safety from the stale-contact bug. Clarified 11 Sep: "what I mean was the assignee's direct number" — not the CSP's, which removes the name-vs-number mismatch and produced G6. **Mitigation derived, not overridden:** G3 mandates the live gateway CSP user record and names `t_account_mapping1` as forbidden; AC-GRD-1 tests it. | 11 Sep 2026 |
+| 5 | Call route outside the masked-calling cohort | The **assignee's own** direct number — the technician's when one is assigned, the CSP's when he took it himself | No CTA; fall back to the call centre; hold the message until a PIN exists | Chose reach over safety from the stale-contact bug. Clarified 11 Sep: "what I mean was the assignee's direct number" — not the CSP's, which removes the name-vs-number mismatch and produced G6. **Mitigation derived, not overridden:** G3 mandates the live contact record and forbids any older copy of those details; AC-GRD-1 tests it. | 11 Sep 2026 |
 | 6 | What the customer sees when the CSP recalls a job from a technician | Same message as a fresh assignment — one template for all four triggers | Neutral message with no name; silent; a distinct CSP-named variant | Fewest templates, one code path. | 11 Sep 2026 |
 | 7 | Double-tap / duplicate event | One chat per actual change of person | One per event always; one per person per ticket | "Double tap should not send the same message two times. Whenever there is an assignee or if a change in assignee, message should be triggered." | 11 Sep 2026 |
 | 8 | Delivery speed | Best effort, no committed window | Within 1 minute; within 5 minutes | A progress message does not warrant retry/recovery engineering. **Recorded as Override O1**, with latency measured through MQ-4 so the decision stays reversible. | 11 Sep 2026 |
@@ -20,8 +20,8 @@ Every row is a decision Ashish made against presented options.
 
 ## Measurements the decisions were made against
 
-Taken 11 Sep 2026 from `PROD_DB.CSP_TAS_SERVICE_CSP_TAS_SERVICE.RESTORE_EXECUTION_CANDIDATES`
-and `PROD_DB.PUBLIC.SERVICE_TICKET_MODEL`, 30-day window.
+Taken 11 Sep 2026 from the TAS execution-candidate and service-ticket data in the warehouse,
+30-day window unless stated otherwise.
 
 | Figure | Value |
 |---|---|
@@ -34,8 +34,8 @@ and `PROD_DB.PUBLIC.SERVICE_TICKET_MODEL`, 30-day window.
 | Median create → completed | 196 min |
 | Completed within 5 min of first progress event | 72.3% |
 | Partner-assigned tickets originating in `CUSTOMER_CHAT` | 20.7% |
-| `NO_TIMES_CUSTOMER_CALLED` | null for every row — M2 has no baseline |
-| Technicians in the gateway `CSP_USER` record | 3,180 — **100% carry a phone number**, 3,179 of 3,180 carry a name |
+| Repeat-contact count per ticket | not captured for any ticket — M2 has no baseline |
+| Technicians with a maintained contact record | 3,180 — **100% carry a phone number**, 3,179 of 3,180 carry a name |
 | Assigned candidates whose technician id resolves to a name **and** a number | 19,698 of 19,698 — **100%** |
 | Shifting candidates, 90 days | 1,617 — **1,512 (94%) assigned a technician**, all carrying ticket id, account and mobile |
 | Shifting median create → assign | 15,910 s (**4.4 hours**); only 9.6% inside a minute — a human action, not a backfill |
@@ -52,7 +52,7 @@ and `PROD_DB.PUBLIC.SERVICE_TICKET_MODEL`, 30-day window.
 | Unprompted chat push already exists | `booking-service-java/…/service/IMessageOrchestratorService.java:14` |
 | Masked-call PIN lookup already exists; `masked_call_available` is the cohort flag | `booking-service-java/…/service/impl/CustomerIvrService.java:19` |
 | booking-service has **no** CSP identity or contact source today | `booking-service-java/src/main/java/com/wiom/client/` |
-| Name and number for both CSPs and technicians live in one table, keyed by user id | `PROD_DB.CSP_GATEWAY_SERVICE_CSP_GATEWAY_SERVICE.CSP_USER` (`ROLE`, `FIRST_NAME`, `PHONE_NUMBER`) |
+| Name and number for both CSPs and technicians are maintained in one place, keyed by user id, in the gateway | csp-gateway-service |
 | The create-ticket flow already sends text then requests the masked connection separately — the two-call pattern this PRD mirrors | `ComplaintGateOrchestrationService.java:176-185` (`sendMessage` then `connectToEngineerWithPin`) |
 | `enrichWithIvrPin` is dead — commented out and superseded by `connectToEngineerWithPin` | `ComplaintGateOrchestrationService.java:174`, `UserConnectionCallStatusHandler.java:135` |
 | Bubbles 2 and 3 are named workflows: `ivr_pin_message` and `call_technician_card` (vars `TECHNICIAN_NAME`, `TECHNICIAN_NUMBER`) | `ticket-service-java/…/model/WorkflowNames.java:38-39`, `service/IvrPinService.java:104-140` |

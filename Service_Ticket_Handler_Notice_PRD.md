@@ -23,7 +23,7 @@ It leaves unchanged: how a ticket is created, classified, deadlined, verified or
 |---|---|---|---|
 | G1 | **Current person only** | The newest card in the thread names the person assigned at the moment its action happened, so the name a customer is holding is never a superseded one. | R2a · R3a · AC-CHG-1 · AC-RACE-2 · MQ-2 |
 | G2 | **Every card works** | A contact card appears only when a masked route or a live direct number actually resolved; otherwise the chat message ships without one. | R3a · R3b · R3c · R3d · AC-CTA-4 · MQ-3 |
-| G3 | **Live contact source only** | Names and numbers come from the live gateway CSP user record. `t_account_mapping1` is never read on this path. | R3 MUST NOT (c) · AC-GRD-1 · MQ-3 |
+| G3 | **Live contact source only** | Names and numbers come from the live contact record (§8) — never from an older copy of those details held elsewhere. | R3 MUST NOT (c) · AC-GRD-1 · MQ-3 |
 | G4 | **One chat message per real change** | An assign action naming the person the customer was already told about sends nothing. | R4a · R4b · AC-DUP-1 · MQ-1 |
 | G5 | **Silence after closure** | No chat is triggered by an action that happens after the ticket reaches a terminal state. | R6a · AC-CLS-2 · MQ-1 |
 | G6 | **The card reaches the person it names** | The call action connects the customer to the assignee named on that card — never to someone else standing in for them. | R3a · R3c · R3 MUST NOT (b) · AC-CTA-2 · AC-GRD-3 · MQ-3 |
@@ -33,10 +33,10 @@ It leaves unchanged: how a ticket is created, classified, deadlined, verified or
 | ID | Metric | Baseline | Target | Source |
 |---|---|---|---|---|
 | M1 | Service tickets where the customer received at least one chat message before the resolution message | 0% — new capability | ≥ 90% of tickets that reach a assignee ⚠️ *AI GENERATED — review* | MQ-1 |
-| M2 | Repeat customer contacts per ticket after the first chat message | **unmeasured** — `NO_TIMES_CUSTOMER_CALLED` on `SERVICE_TICKET_MODEL` is null for every row; MQ-5 must build this before M2 can be read | −20% against the baseline MQ-5 establishes ⚠️ *AI GENERATED — review* | MQ-5 |
+| M2 | Repeat customer contacts per ticket after the first chat message | **unmeasured** — repeat contacts are not captured against any ticket today; MQ-5 must build this before M2 can be read | −20% against the baseline MQ-5 establishes ⚠️ *AI GENERATED — review* | MQ-5 |
 | M3 | Cards whose call action the customer used | n/a — new capability | Observed, not targeted | MQ-3 |
 
-**Invariant (not a metric):** G3 cards carrying a name or number sourced from `t_account_mapping1` = 0, zero tolerance. Monitored via MQ-3, not trended.
+**Invariant (not a metric):** G3 cards carrying a name or number from anything but the live contact record = 0, zero tolerance. Monitored via MQ-3, not trended.
 
 ---
 
@@ -46,7 +46,7 @@ It leaves unchanged: how a ticket is created, classified, deadlined, verified or
 |---|---|---|---|
 | R1 | As a customer with an open service ticket, I want to know when someone actually starts working on it, so that I stop calling to find out. | **(a)** Send a chat message the first time a person takes the ticket — the CSP taking it himself, or a technician he assigns. **(b)** Do this for every service ticket, whatever channel the ticket was created on. | Send a chat message before any person has taken the ticket. A ticket merely sitting with the CSP is not a assignee. |
 | R2 | As a customer, I want to know when the person working on my ticket changes, so that the name I am holding is the person actually coming. | **(a)** Send a chat message on every genuine change of assignee — one technician swapped for another, or the CSP taking the job back off a technician. **(b)** Use one message for every change, whether the new assignee is a technician or the CSP himself. | Leave the customer holding a name that has been superseded (G1). |
-| R3 | As a customer, I want to reach the person working on my ticket in one tap, without hunting for a number. | **(a)** Alongside every chat message, send a contact card naming the assignee, carrying a call action. **(b)** Where masked calling is available for the ticket, precede the card with the PIN message and route the call through the masked number. **(c)** Where it is not, the card calls the **assignee's own** direct number, read from the live gateway CSP user record. **(d)** Where no route resolves at all, send the chat message with no card. | **(a)** Show a card with no working route behind it (G2). **(b)** Name one person on the card and connect the customer to another (G6). **(c)** Read the name or number from `t_account_mapping1` (G3). |
+| R3 | As a customer, I want to reach the person working on my ticket in one tap, without hunting for a number. | **(a)** Alongside every chat message, send a contact card naming the assignee, carrying a call action. **(b)** Where masked calling is available for the ticket, precede the card with the PIN message and route the call through the masked number. **(c)** Where it is not, the card calls the **assignee's own** direct number, read from the live contact record. **(d)** Where no route resolves at all, send the chat message with no card. | **(a)** Show a card with no working route behind it (G2). **(b)** Name one person on the card and connect the customer to another (G6). **(c)** Read the name or number from any source other than the live contact record (G3). |
 | R4 | As Wiom, I want one chat message per real change, so that the chat stays readable and the customer trusts each message. | **(a)** Remember which person the customer was last told about, per ticket. **(b)** Send nothing when an assign action names that same person. | Send two chat messages naming the same person in a row, however many times the action fires. |
 | R5 | As a customer, I want to hear that work has started, and to be able to call, even when Wiom cannot tell me the person's name. | **(a)** Send the chat message unchanged — it never carries a name — and send the card with its call action intact but no name shown. | Put a different person's name on the card in place of the assignee's. |
 | R6 | As Wiom, I want chat messages to stop when the ticket is done, so that a closed ticket never looks live. | **(a)** Generate no chat message from an action that happens after the ticket reaches a terminal state. | Suppress a chat message generated before closure merely because it will land after the resolution message. |
@@ -173,10 +173,10 @@ sees between bubbles 1 and 3:
 
 | Element | Source / Routes to | Logic |
 |---|---|---|
-| Field — assignee name | live gateway CSP user record for the person last told (§3b, §8) | The CSP's name when the CSP took it himself, the technician's when one is assigned. Omitted — never substituted — when it cannot be resolved (R5a). |
+| Field — assignee name | live contact record for the assignee (§3b, §8) | The CSP's name when the CSP took it himself, the technician's when one is assigned. Omitted — never substituted — when it cannot be resolved (R5a). |
 | Action — call | masked number where available (R3b), else the assignee's own direct number (R3c) | Offered only when a route resolved (R3d, G2). Connects to the person named on this card and no one else (G6). |
 | Check — route resolution | — | If no route resolves, the card is not sent at all; bubble 1 still goes (R3d). |
-| Check — contact source | — | Name and number came from the live gateway CSP user record; a value originating in `t_account_mapping1` is never rendered (G3). |
+| Check — contact source | — | Name and number came from the live contact record; a value from any older copy is never rendered (G3). |
 
 ---
 
@@ -247,7 +247,7 @@ Worked data used throughout: customer **Sunita Devi**, account `WN4471203`, tick
 | AC | Given / When / Then | Verifies | Status |
 |---|---|---|---|
 | AC-CTA-1 | **Given** masked calling is available for ticket 1787745414303000, **When** Imran Sheikh is assigned, **Then** Sunita receives three bubbles in order — the chat message quoting ticket 1787745414303000, the PIN message showing PIN `015564`, and a card naming Imran Sheikh with a call action — and no personal mobile number appears in any of them. | R3a · R3b · T2 | Settled |
-| AC-CTA-2 | **Given** masked calling is not available for ticket 1787745414303000 and Imran Sheikh's live gateway user record holds `9812345670`, **When** Imran is assigned, **Then** Sunita receives the chat message and a card naming Imran whose call action dials `9812345670` — Imran's own number, not Ramesh Kumar's — and no PIN message is sent. | R3c · G6 · T2 | Settled |
+| AC-CTA-2 | **Given** masked calling is not available for ticket 1787745414303000 and Imran Sheikh's live contact record holds `9812345670`, **When** Imran is assigned, **Then** Sunita receives the chat message and a card naming Imran whose call action dials `9812345670` — Imran's own number, not Ramesh Kumar's — and no PIN message is sent. | R3c · G6 · T2 | Settled |
 | AC-CTA-3 | **Given** masked calling is not available and Ramesh Kumar takes ticket 1787745414303000 himself, **When** the chat message is sent, **Then** the card names Ramesh Kumar and dials Ramesh Kumar's own number — the assignee is the CSP in this case, and the card is truthful either way. | R3c · R3a · G6 · T1 | Settled |
 | AC-CTA-4 | **Given** neither masked calling nor any direct number resolves for Imran Sheikh, **When** he is assigned, **Then** the chat message is still sent and **no card is sent at all** — the customer is never shown a call action that cannot connect. | R3d · R3 MUST NOT (a) · G2 · T2 | Settled |
 | AC-CTA-5 | **Given** Imran Sheikh's name cannot be resolved but his number can, **When** he is assigned, **Then** the chat message is sent unchanged and the card is sent with a working call action and no name — Ramesh Kumar's name does not appear on it. | R5a · R5 MUST NOT · T2 | Settled |
@@ -307,7 +307,7 @@ Worked data used throughout: customer **Sunita Devi**, account `WN4471203`, tick
 
 | AC | Given / When / Then | Verifies | Status |
 |---|---|---|---|
-| AC-GRD-1 | **Given** `t_account_mapping1` holds `Suresh Yadav / 9811111111` for Sunita's connection while the live gateway user record for the assignee holds `Imran Sheikh / 9812345670`, **When** a card with a direct-number call action is sent, **Then** it names Imran Sheikh and dials `9812345670` — never `Suresh Yadav` or `9811111111` — and the source recorded for the contact is the gateway user record. | G3 · R3 MUST NOT (c) · MQ-3 | Settled |
+| AC-GRD-1 | **Given** an older copy of the CSP contact details elsewhere in the estate still shows `Suresh Yadav / 9811111111` for Sunita's connection, while the live contact record for the assignee holds `Imran Sheikh / 9812345670`, **When** a card with a direct-number call action is sent, **Then** it names Imran Sheikh and dials `9812345670` — never `Suresh Yadav` or `9811111111` — and the source recorded against the card is the live contact record. | G3 · R3 MUST NOT (c) · MQ-3 | Settled |
 | AC-GRD-2 | **Given** every card delivered over a full day of production traffic, **When** MQ-2 is run against it, **Then** each card named the person assigned at the moment of its triggering action — no card named a person already superseded. | G1 · MQ-2 | Settled |
 | AC-GRD-3 | **Given** every card delivered over a full day of production traffic, **When** MQ-3 is run against it, **Then** each card's call action reached the person named on that card — no card connected the customer to a stand-in. | G6 · R3 MUST NOT (b) · MQ-3 | Settled |
 
@@ -321,6 +321,7 @@ Worked data used throughout: customer **Sunita Devi**, account `WN4471203`, tick
 | Last told | **Canonical definition:** the assignee the customer was most recently told about. It can lag the real assignee between an action and the chat that follows it. This is the entity whose lifecycle §3b describes, and it carries the person, whether they are the CSP or a technician, and the ticket. | — |
 | Chat message | **Canonical definition:** the fixed-copy message triggered when the assignee is set or changes (§4 bubble 1). The same on a first send, a swap and a recall; it names no one. | — |
 | Contact card | **Canonical definition:** the chat bubble carrying the assignee's name and a call action (§4 bubble 3), sent alongside every chat where a route resolves. The only place a person is named. | — |
+| Live contact record | **Canonical definition:** the record where a person's own name and mobile number are maintained and kept current — the CSP's and the technician's alike, in one place. Any other copy of those details held elsewhere in the estate is stale by definition and is never read on this path (G3). | CSP identity |
 | Masked calling | A call route where the customer dials a shared number and enters a PIN to be connected to the assignee, so neither party sees the other's number. Availability is decided per ticket by the IVR service, not by this spec. | IVR / masked calling |
 | Terminal state | A ticket state from which no further work happens — resolved-and-closed, or cancelled. Used by R6a and G5 as the point chats stop. | CSP execution |
 
@@ -335,7 +336,7 @@ What the platform must be able to do for this feature to exist. Whether these ar
 | Observe every change of assignee on a service ticket — the CSP taking it himself, a technician assigned, a technician swapped, a job recalled — and carry enough identity with each to reach that ticket's customer. Today only the technician-assignment signal carries customer identity; the self-assign and recall signals carry none. | T1 · T2 · T3 · R1a · R2a |
 | Remember, per ticket, which person the customer was last told about, and compare a new assignee against it. | T4 · R4a · R4b · G4 |
 | Resolve the assignee's display name **and their own direct number** from their identifier at send time — the same lookup for a CSP and for a technician — and proceed without a name when it cannot be resolved. | R3c · R5a · G6 · T1 · T2 · T3 |
-| Read those details only from the live gateway CSP user record — never from `t_account_mapping1`. | G3 · AC-GRD-1 |
+| Read those details only from the live contact record, and record which source each card used. | G3 · AC-GRD-1 · MQ-3 |
 | Trigger the existing masked-calling workflow for a ticket, and tell whether masked calling is available for it. The workflow itself is reused, not rebuilt. | R3b · C-04 |
 | Push an unprompted message into a customer's chat thread, keyed to their account, for any customer on app version C-01 or above, whatever channel their ticket came from — in the customer's own language. | R1b · T1 · T2 · T3 · C-01 |
 | Send a contact card carrying a name and a call action, and re-send a fresh one whenever the assignee changes. | R3a · G1 · G6 · T3 |
