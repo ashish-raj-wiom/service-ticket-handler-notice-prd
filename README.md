@@ -1,14 +1,14 @@
-# Service Ticket Handler Notice — PRD
+# Service Ticket Chat — PRD
 
 Roadmap item 01 of the Service Tickets POD: *the customer cannot see any progress.*
-When the handler of a service ticket is set or changes, tell the customer in app chat.
+When the assignee on a service ticket is set or changes, trigger the customer chat.
 
 **Read it:** https://ashish-raj-wiom.github.io/service-ticket-handler-notice-prd/
 
 | File | What it is |
 |---|---|
 | `Service_Ticket_Handler_Notice_PRD.md` | The PRD. Wiom Template v3. **The single source of truth.** |
-| `Service_Ticket_Handler_Notice_Tradeoffs.md` | The nine decisions behind it, the measurements they were made against, and the code facts the spec rests on. |
+| `Service_Ticket_Handler_Notice_Tradeoffs.md` | The twelve decisions behind it, the measurements they were made against, and the code facts the spec rests on. |
 | `index.html` | Renders the markdown live from this repo. Holds no content of its own. |
 
 ## How to change the document
@@ -33,7 +33,7 @@ Four things block sign-off:
 
 1. No engineering reviewer named.
 2. No consulted parties named for TAS, chat or IVR.
-3. No design exists for the notice or its CTA.
+3. No design exists for the chat or its contact card.
 4. M2 has no baseline — `NO_TIMES_CUSTOMER_CALLED` is null for every row, so repeat-contact
    rate cannot be read before or after.
 
