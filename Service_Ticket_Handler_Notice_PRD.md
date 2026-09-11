@@ -196,7 +196,7 @@ Copy in production, one language per customer, not both:
 
 ## 7. Acceptance Criteria
 
-Worked data used throughout: customer **Sunita Devi**, account `WN4471203`, ticket **1787745414303000** raised 11 Sep 2026 09:14 IST; CSP **Ramesh Kumar**; technicians **Imran Sheikh** and **Vikas Yadav**; masked DID `08047106321`, PIN `4417`.
+Worked data used throughout: customer **Sunita Devi**, account `WN4471203`, ticket **1787745414303000** raised 11 Sep 2026 09:14 IST; CSP **Ramesh Kumar**; technicians **Imran Sheikh** and **Vikas Yadav**; masked DID `08047106321`, PIN `015564`.
 
 ### FST — First notice (T1, T2)
 
