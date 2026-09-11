@@ -15,18 +15,18 @@
 
 It leaves unchanged: how a ticket is created, classified, deadlined, verified or closed; the CSP app and the actions in it; the existing CSP-side and technician-side notifications that already fire on the same events; the complaint chat intake gates and the resolution message the customer already receives. The masked-calling PIN workflow is reused unchanged: this spec decides when it fires, never what it says (§4 bubble 2).
 
-**Shifting is out of scope, and must be filtered out.** The `ES_RESTORE_TECHNICIAN_ASSIGNED` event does not distinguish task family, so without an explicit check a shifting customer would receive this feature by default — and the chat message copy is complaint-framed ("आपकी शिकायत" / "Your complaint… resolving your issue"), which is wrong for a request to move a connection. Shifting already has its own customer workflows (`ticket_type_5_created`, `ticket_type_5_tat_breached`, `ticket_type_5_resolved`) and is already barred from the PIN and card path, which accepts only `NBREC`, `INSTALL` and `RESTORE`. Excluding it here is therefore consistent with how the estate already treats it. R7 makes the exclusion a requirement rather than an omission. **This leaves a known, deliberate gap**: 94% of shifting candidates are assigned a technician, a median 4.4 hours after creation, against a 96-hour TAT, and that customer is told nothing — the same problem this PRD solves for restore. It is V2 work, not a non-problem. Chat messages reach customers on app version C-01 and above; below that the customer sees nothing new, and this spec does not add another channel to reach them (M1's ceiling, not a defect).
+**Shifting is out of scope, and must be filtered out.** The `ES_RESTORE_TECHNICIAN_ASSIGNED` event does not distinguish task family, so without an explicit check a shifting customer would receive this feature by default — and the chat message copy is complaint-framed ("आपकी शिकायत" / "Your complaint… resolving your issue"), which is wrong for a request to move a connection. Shifting already has its own customer workflows (`ticket_type_5_created`, `ticket_type_5_tat_breached`, `ticket_type_5_resolved`) and is already barred from the PIN and card path, which accepts only `NBREC`, `INSTALL` and `RESTORE`. Excluding it here is therefore consistent with how the estate already treats it. R7 makes the exclusion a requirement rather than an omission. **This leaves a known, deliberate gap**: 94% of shifting candidates are assigned a technician, a median 4.4 hours after creation, against a 96-hour TAT, and that customer is told nothing — the same problem this PRD solves for restore. It is V2 work, not a non-problem. Customers whose app is too old to receive a chat see nothing new, and this spec does not add another channel to reach them (M1's ceiling, not a defect).
 
 ### Guardrails — promises that hold on every path
 
 | ID | Guardrail | One line | Anchors |
 |---|---|---|---|
 | G1 | **Current person only** | The newest card in the thread names the person assigned at the moment its action happened, so the name a customer is holding is never a superseded one. | R2a · R3a · AC-CHG-1 · AC-RACE-2 · MQ-2 |
-| G2 | **Every card works** | A contact card appears only when a masked route or a live direct number actually resolved; otherwise the chat message ships without one. | R3a · R3b · R3c · R3d · AC-CTA-4 · MQ-3 |
+| G2 | **Every card works** | A contact card appears only when a masked route or a live direct number actually resolved; otherwise the chat goes out without one. | R3a · R3b · R3c · R3d · AC-CARD-4 · MQ-3 |
 | G3 | **Live contact source only** | Names and numbers come from the live contact record (§8) — never from an older copy of those details held elsewhere. | R3 MUST NOT (c) · AC-GRD-1 · MQ-3 |
 | G4 | **One chat message per real change** | An assign action naming the person the customer was already told about sends nothing. | R4a · R4b · AC-DUP-1 · MQ-1 |
 | G5 | **Silence after closure** | No chat is triggered by an action that happens after the ticket reaches a terminal state. | R6a · AC-CLS-2 · MQ-1 |
-| G6 | **The card reaches the person it names** | The call action connects the customer to the assignee named on that card — never to someone else standing in for them. | R3a · R3c · R3 MUST NOT (b) · AC-CTA-2 · AC-GRD-3 · MQ-3 |
+| G6 | **The card reaches the person it names** | The call action connects the customer to the assignee named on that card — never to someone else standing in for them. | R3a · R3c · R3 MUST NOT (b) · AC-CARD-2 · AC-GRD-3 · MQ-3 |
 
 ### Success metrics
 
@@ -101,7 +101,7 @@ Lifecycle of **who the customer has been told about** — one per ticket, create
 | T4 | Told — person X | Assign action naming X again — double tap, or the same action arriving twice | New assignee = X | Told — X (unchanged) | **No chat triggered** (R4b, G4). Recorded as suppressed so MQ-1 can tell suppression from failure. |
 | T5 | Told — X, or — | Ticket reaches COMPLETED or CANCELLED | — | Closed | No side-effect of its own. Chats already triggered still deliver (P2, R6 MUST NOT). |
 | T6 | Closed | Any later assign, swap or recall action | — | Closed | **No chat triggered** (R6a, G5). |
-| T7 | Any transition that would trigger a chat | The chat cannot be delivered — customer below C-01, no chat identity, or the send fails | — | Unchanged | **Envelope:** the customer receives nothing and is told nothing later; no recovery is promised (Override O1). The miss is recorded against the ticket and counts as a failure for M1 (MQ-1). Who we told them about is **not** updated, so the next genuine change still triggers a chat (R4a). |
+| T7 | Any transition that would trigger a chat | The chat cannot be delivered — the customer's app is too old to receive it, there is no chat identity, or the send fails | — | Unchanged | **Envelope:** the customer receives nothing and is told nothing later; no recovery is promised (Override O1). The miss is recorded against the ticket and counts as a failure for M1 (MQ-1). Who we told them about is **not** updated, so the next genuine change still triggers a chat (R4a). |
 
 **What T1, T2 and T3 send.** Each triggers the chat, then the contact card — two messages, in that order, mirroring the existing create-ticket flow, which sends its text and then requests the masked-call connection separately. The copy is fixed and identical on all three; it never names anyone. The assignee's name is carried on the card.
 
@@ -132,8 +132,8 @@ The customer receives **two or three bubbles** per chat message, in this order:
 
 ### Bubble 1 — chat message
 
-**States:** sent (a assignee was set or changed — T1, T2, T3) · not sent (no assignee yet, ticket terminal, or customer below C-01 — T6, T7)
-**Freshness:** appended when generated. No delivery window is committed — C-02, and see Override O1. Latency is measured, not promised (MQ-4).
+**States:** sent (a assignee was set or changed — T1, T2, T3) · not sent (no assignee yet, ticket terminal, or an app too old to receive it — T6, T7)
+**Freshness:** appended when generated. No delivery window is committed — see Override O1. Latency is measured, not promised (MQ-4).
 
 Copy in production, one language per customer, not both:
 
@@ -182,16 +182,17 @@ sees between bubbles 1 and 3:
 
 ## 5. Configurability
 
-| ID | Parameter | Default | Range | Who changes it |
-|---|---|---|---|---|
-| C-01 | Minimum customer app version for chat message delivery (governs T7) | 3042 | Fixed in V1 | Engineering |
-| C-02 | Chat message delivery latency target (governs T1, T2, T3, §4 freshness) | **No committed target — best effort** | n/a — see Override O1 | PM |
-| C-03 | Maximum chat messages per ticket (governs T3) | No cap | No cap, or 2–20 | PM ⚠️ *AI GENERATED — review* |
-| C-04 | Ticket type used when requesting a masked-call PIN (governs R3a) | `RESTORE` | Fixed in V1 | Engineering |
+**This feature introduces no configurable parameters.**
 
-**Interaction note (C-01 × C-02):** a customer below C-01 is never in a waiting state — no chat is triggered for them to wait on, and nothing is queued for a later app upgrade. The T7 envelope is immediate and final, which is why C-02 has no bearing on them.
+Three numbers touch it, and none of them is ours to set:
 
-**Interaction note (C-03 × G4):** C-03 counts chat messages actually sent, so suppressed duplicates (T4) never consume the cap. If the cap is ever set and reached, further genuine changes get no chat and count as M1 failures.  ⚠️ *AI GENERATED — review*
+| The number | Who owns it |
+|---|---|
+| The minimum app version that can receive a chat at all | The chat platform's own rollout gate. Below it the customer gets nothing (T7) — a ceiling on M1, not a setting of ours. |
+| The PIN, and the ticket type used to request it | The masked-calling workflow, reused unchanged (§1 Boundary, §4 bubble 2). |
+| Delivery speed | Not committed at all. Best effort, measured through MQ-4 and never promised — see Override O1. |
+
+There is no cap on how many chats one ticket may send. A chat follows every genuine change of assignee by decision, and duplicates are suppressed by person rather than by count (R4b, G4).
 
 ---
 
@@ -199,10 +200,10 @@ sees between bubbles 1 and 3:
 
 | ID | The system must be able to answer… | Feeds |
 |---|---|---|
-| MQ-1 | For each service ticket: how many chat messages were generated, who each named, and for each one whether it was delivered, suppressed as a duplicate, or failed to deliver. | M1 · G4 · G5 · C-03 |
+| MQ-1 | For each service ticket: how many chats were triggered, who each card named, and for each one whether it was delivered, suppressed as a duplicate, or failed to deliver. | M1 · G4 · G5 |
 | MQ-2 | For each chat message: whether the person it named was the person assigned at the moment the action occurred. | G1 |
 | MQ-3 | For each card: whether it was sent, whom it named, which route it carried (masked, direct, or none), which record the name and number came from, and whether the call reached the person named. | G2 · G3 invariant · G6 · M3 |
-| MQ-4 | For each delivered chat message: the time between the CSP's action and the chat message appearing in the chat thread. | C-02 — measured, never committed (Override O1) |
+| MQ-4 | For each delivered chat message: the time between the CSP's action and the chat appearing in the thread. | Override O1 — measured, never committed |
 | MQ-5 | For each ticket: how many times the customer contacted us about it, split before and after the first chat message — and the same figure for tickets that received no chat message. | M2, including its missing baseline |
 
 ---
@@ -215,10 +216,12 @@ Worked data used throughout: customer **Sunita Devi**, account `WN4471203`, tick
 
 | AC | Given / When / Then | Verifies | Status |
 |---|---|---|---|
-| AC-FST-1 | **Given** ticket 1787745414303000 open with no chat message sent, **When** Ramesh Kumar takes the ticket himself at 09:31, **Then** Sunita's chat thread carries one chat message naming Ramesh Kumar as the person handling it, with a call CTA, and Ramesh is recorded as the person last told. | R1a · T1 | Settled |
-| AC-FST-2 | **Given** ticket 1787745414303000 open with no chat message sent, **When** Ramesh assigns Imran Sheikh at 09:31 without taking it himself first, **Then** the thread carries one chat message naming Imran Sheikh, with a call CTA, and Imran is the person last told. | R1a · T2 | Settled |
-| AC-FST-3 | **Given** ticket 1787745414303000 was created by a call-centre agent in Kapture and Sunita has never used chat, **When** Ramesh assigns Imran, **Then** the chat message still reaches her chat thread — creation channel makes no difference. | R1b · T2 | Settled |
-| AC-FST-4 | **Given** ticket 1787745414303000 open and untouched since 09:14, **When** two hours pass with no CSP action, **Then** no chat message has been sent at any point. | R1 MUST NOT · T1 · T2 | Settled |
+| AC-FST-1 | **Given** ticket 1787745414303000 open with no chat sent yet, **and** masked calling available for it, **When** Ramesh Kumar takes the ticket himself at 09:31, **Then** Sunita receives three bubbles in order — the chat quoting ticket 1787745414303000 and **naming no one**, the PIN message, and a card naming Ramesh Kumar — and Ramesh is recorded as last told. | R1a · R3b · T1 | Settled |
+| AC-FST-2 | **Given** ticket 1787745414303000 open with no chat sent yet, **and** masked calling **not** available for it, **When** Ramesh assigns Imran Sheikh at 09:31 without taking it himself first, **Then** Sunita receives two bubbles — the same chat, naming no one, and a card naming Imran Sheikh — **no PIN message is sent**, and Imran is recorded as last told. | R1a · R3c · T2 | Settled |
+| AC-FST-3 | **Given** ticket 1787745414303000 was created by a call-centre agent in Kapture and Sunita has never used chat, **When** Ramesh assigns Imran, **Then** the chat and its card still reach her thread — creation channel makes no difference to either. | R1b · T2 | Settled |
+| AC-FST-4 | **Given** ticket 1787745414303000 open and untouched since 09:14, **When** two hours pass with no CSP action, **Then** no chat, no PIN message and no card have been sent at any point. | R1 MUST NOT · T1 · T2 | Settled |
+
+The same chat copy is sent on T1 and T2 — see AC-CHG-2 for T3. Which bubbles follow it is decided only by the call route (R3b, R3c), never by whether the assignee is the CSP or a technician.
 
 ### CHG — Change of assignee (T3)
 
@@ -226,8 +229,8 @@ Worked data used throughout: customer **Sunita Devi**, account `WN4471203`, tick
 |---|---|---|---|
 | AC-CHG-1 | **Given** Sunita has been told her ticket is with a dedicated engineer and holds a card naming Imran Sheikh, **When** Ramesh swaps the assignment to Vikas Yadav at 11:02, **Then** a further chat message is sent and **a fresh card naming Vikas Yadav** appears below it, so the newest card in the thread names Vikas and not Imran, and Vikas is the person last told. | R2a · R2 MUST NOT · R3a · T3 · G1 | Settled |
 | AC-CHG-4 | **Given** the swap in AC-CHG-1 and masked calling available for the ticket, **When** the chat message for Vikas is sent, **Then** the PIN message is sent again alongside the fresh card — the customer is never left with a current card and no way to read the PIN. | R3b · T3 | Settled |
-| AC-CHG-2 | **Given** Sunita has been told Imran Sheikh is handling the ticket, **When** Ramesh recalls the job off Imran at 11:02 and it returns to him, **Then** the thread carries a chat message naming Ramesh Kumar, in the same message form used for AC-CHG-1 — a recall reads to the customer exactly like any other change. | R2a · R2b · T3 | Settled |
-| AC-CHG-3 | **Given** Sunita has been told Vikas Yadav is handling the ticket, **When** Ramesh swaps back to Imran Sheikh at 12:40, **Then** a further chat message naming Imran is sent — a return to a previously named person is a genuine change, not a duplicate. | R2a · T3 · G4 boundary | Settled |
+| AC-CHG-2 | **Given** Sunita has been told Imran Sheikh is handling the ticket, **When** Ramesh recalls the job off Imran at 11:02 and it returns to him, **Then** the chat is triggered again with the same copy and a fresh card naming Ramesh Kumar appears below it — a recall reads to the customer exactly like any other change. | R2a · R2b · T3 | Settled |
+| AC-CHG-3 | **Given** Sunita has been told Vikas Yadav is handling the ticket, **When** Ramesh swaps back to Imran Sheikh at 12:40, **Then** the chat is triggered again and a fresh card naming Imran appears — a return to a previously named person is a genuine change, not a duplicate. | R2a · T3 · G4 boundary | Settled |
 
 ### SUP — Suppression (T4)
 
@@ -242,30 +245,30 @@ Worked data used throughout: customer **Sunita Devi**, account `WN4471203`, tick
 | AC-CLS-1 | **Given** Sunita has been told Imran Sheikh is handling the ticket, **When** the ticket is marked resolved at 12:15 and closes, **Then** her thread holds the Imran chat message and the resolution message, and no further chat message is generated for that ticket. | T5 · R6a | Settled |
 | AC-CLS-2 | **Given** ticket 1787745414303000 closed at 12:15, **When** an assign-Vikas action arrives at 12:18 against the closed ticket, **Then** no chat message is sent and Sunita's thread is unchanged. | R6a · T6 · G5 | Settled |
 
-### CTA — Contact card and call route (R3, R5)
+### CARD — Contact card and call route (R3, R5)
 
 | AC | Given / When / Then | Verifies | Status |
 |---|---|---|---|
-| AC-CTA-1 | **Given** masked calling is available for ticket 1787745414303000, **When** Imran Sheikh is assigned, **Then** Sunita receives three bubbles in order — the chat message quoting ticket 1787745414303000, the PIN message showing PIN `015564`, and a card naming Imran Sheikh with a call action — and no personal mobile number appears in any of them. | R3a · R3b · T2 | Settled |
-| AC-CTA-2 | **Given** masked calling is not available for ticket 1787745414303000 and Imran Sheikh's live contact record holds `9812345670`, **When** Imran is assigned, **Then** Sunita receives the chat message and a card naming Imran whose call action dials `9812345670` — Imran's own number, not Ramesh Kumar's — and no PIN message is sent. | R3c · G6 · T2 | Settled |
-| AC-CTA-3 | **Given** masked calling is not available and Ramesh Kumar takes ticket 1787745414303000 himself, **When** the chat message is sent, **Then** the card names Ramesh Kumar and dials Ramesh Kumar's own number — the assignee is the CSP in this case, and the card is truthful either way. | R3c · R3a · G6 · T1 | Settled |
-| AC-CTA-4 | **Given** neither masked calling nor any direct number resolves for Imran Sheikh, **When** he is assigned, **Then** the chat message is still sent and **no card is sent at all** — the customer is never shown a call action that cannot connect. | R3d · R3 MUST NOT (a) · G2 · T2 | Settled |
-| AC-CTA-5 | **Given** Imran Sheikh's name cannot be resolved but his number can, **When** he is assigned, **Then** the chat message is sent unchanged and the card is sent with a working call action and no name — Ramesh Kumar's name does not appear on it. | R5a · R5 MUST NOT · T2 | Settled |
-| AC-CTA-6 | **Given** Sunita's language preference is Hindi, **When** Imran is assigned, **Then** she receives the Hindi copy only, and the English variant is not also sent. | §4 bubble 1 | Settled |
+| AC-CARD-1 | **Given** masked calling is available for ticket 1787745414303000, **When** Imran Sheikh is assigned, **Then** Sunita receives three bubbles in order — the chat message quoting ticket 1787745414303000, the PIN message showing PIN `015564`, and a card naming Imran Sheikh with a call action — and no personal mobile number appears in any of them. | R3a · R3b · T2 | Settled |
+| AC-CARD-2 | **Given** masked calling is not available for ticket 1787745414303000 and Imran Sheikh's live contact record holds `9812345670`, **When** Imran is assigned, **Then** Sunita receives the chat message and a card naming Imran whose call action dials `9812345670` — Imran's own number, not Ramesh Kumar's — and no PIN message is sent. | R3c · G6 · T2 | Settled |
+| AC-CARD-3 | **Given** masked calling is not available and Ramesh Kumar takes ticket 1787745414303000 himself, **When** the chat message is sent, **Then** the card names Ramesh Kumar and dials Ramesh Kumar's own number — the assignee is the CSP in this case, and the card is truthful either way. | R3c · R3a · G6 · T1 | Settled |
+| AC-CARD-4 | **Given** neither masked calling nor any direct number resolves for Imran Sheikh, **When** he is assigned, **Then** the chat message is still sent and **no card is sent at all** — the customer is never shown a call action that cannot connect. | R3d · R3 MUST NOT (a) · G2 · T2 | Settled |
+| AC-CARD-5 | **Given** Imran Sheikh's name cannot be resolved but his number can, **When** he is assigned, **Then** the chat message is sent unchanged and the card is sent with a working call action and no name — Ramesh Kumar's name does not appear on it. | R5a · R5 MUST NOT · T2 | Settled |
+| AC-CARD-6 | **Given** Sunita's language preference is Hindi, **When** Imran is assigned, **Then** she receives the Hindi copy only, and the English variant is not also sent. | §4 bubble 1 | Settled |
 
 ### WF — Workflows
 
 | AC | Given / When / Then | Verifies | Status |
 |---|---|---|---|
-| AC-WF-1 | **Given** ticket 1787745414303000 raised at 09:14, **When** Ramesh takes it at 09:31, assigns Imran at 09:48, swaps to Vikas at 11:02, and the ticket resolves at 12:15, **Then** Sunita's thread holds exactly three chat messages in that order — Ramesh, Imran, Vikas — followed by the resolution message, and the last name she holds is Vikas. | T1 · T3 · T5 · G1 · G4 | Settled |
-| AC-WF-2 | **Given** ticket 1787745414303000 raised at 09:14, **When** Ramesh takes it at 09:31 and marks it resolved at 09:33, **Then** Sunita receives the Ramesh chat message and the resolution message roughly two minutes apart, and neither is suppressed on account of the other. | T1 · T5 · P2 | Settled |
+| AC-WF-1 | **Given** ticket 1787745414303000 raised at 09:14, **When** Ramesh takes it at 09:31, assigns Imran at 09:48, swaps to Vikas at 11:02, and the ticket resolves at 12:15, **Then** Sunita's thread holds exactly three chats, each with its own card — naming Ramesh, then Imran, then Vikas — followed by the resolution message, and the newest card names Vikas. | T1 · T3 · T5 · G1 · G4 | Settled |
+| AC-WF-2 | **Given** ticket 1787745414303000 raised at 09:14, **When** Ramesh takes it at 09:31 and marks it resolved at 09:33, **Then** Sunita receives the chat and the card naming Ramesh, then the resolution message roughly two minutes later, and neither is suppressed on account of the other. | T1 · T5 · P2 | Settled |
 
 ### FAIL — Failure envelope (T7)
 
 | AC | Given / When / Then | Verifies | Status |
 |---|---|---|---|
-| AC-FAIL-1 | **Given** Sunita's app is on version 3041 — below C-01 (3042), **When** Imran is assigned, **Then** she receives no chat message, nothing is queued for a later upgrade, the ticket is recorded as having a failed chat message, and it counts against M1. | T7 · C-01 | Settled |
-| AC-FAIL-2 | **Given** the chat message naming Imran failed to deliver, **When** Ramesh later swaps to Vikas, **Then** a chat message naming Vikas is attempted — the failed Imran chat message did not consume the told-assignee slot. | T7 · R4a | Settled |
+| AC-FAIL-1 | **Given** Sunita's app is too old to receive a chat, **When** Imran is assigned, **Then** she receives nothing, nothing is queued for a later upgrade, the ticket is recorded as having a failed chat, and it counts against M1. | T7 | Settled |
+| AC-FAIL-2 | **Given** the chat and card for Imran failed to deliver, **When** Ramesh later swaps to Vikas, **Then** a chat and a card naming Vikas are attempted — the failed send did not consume the last-told slot. | T7 · R4a | Settled |
 
 ### REG — Regression (§1 Boundary)
 
@@ -288,20 +291,6 @@ Worked data used throughout: customer **Sunita Devi**, account `WN4471203`, tick
 | AC | Given / When / Then | Verifies | Status |
 |---|---|---|---|
 | AC-DUP-1 | **Given** Imran is the person last told, **When** the assign-Imran action fires five times in ten seconds, **Then** exactly one chat message exists in Sunita's thread naming Imran. | R4b · R4 MUST NOT · T4 · G4 | Settled |
-
-### BV — Boundary values (C-01)
-
-| AC | Given / When / Then | Verifies | Status |
-|---|---|---|---|
-| AC-BV-1 | **Given** Sunita's app is on version 3042 — exactly C-01 — **When** Imran is assigned, **Then** the chat message is delivered. | C-01 · T2 | Settled |
-| AC-BV-2 | **Given** Sunita's app is on version 3041 — one below C-01 — **When** Imran is assigned, **Then** no chat message is delivered and T7 applies. | C-01 · T7 | Settled |
-
-### CFG — Configurability
-
-| AC | Given / When / Then | Verifies | Status |
-|---|---|---|---|
-| AC-CFG-1 | **Given** C-01 is raised to 3100 and Sunita's app is on 3050, **When** Imran is assigned, **Then** she receives no chat message — behaviour follows the changed value with no code change. | C-01 · T7 | Settled |
-| AC-CFG-2 | **Given** C-03 is set to 2 and Sunita has already received chat messages for Ramesh and Imran, **When** Ramesh swaps to Vikas, **Then** no chat message is sent and the ticket counts as an M1 failure rather than a suppression. | C-03 · G4 | Settled ⚠️ *AI GENERATED — review* |
 
 ### GRD — Guardrails
 
@@ -337,8 +326,8 @@ What the platform must be able to do for this feature to exist. Whether these ar
 | Remember, per ticket, which person the customer was last told about, and compare a new assignee against it. | T4 · R4a · R4b · G4 |
 | Resolve the assignee's display name **and their own direct number** from their identifier at send time — the same lookup for a CSP and for a technician — and proceed without a name when it cannot be resolved. | R3c · R5a · G6 · T1 · T2 · T3 |
 | Read those details only from the live contact record, and record which source each card used. | G3 · AC-GRD-1 · MQ-3 |
-| Trigger the existing masked-calling workflow for a ticket, and tell whether masked calling is available for it. The workflow itself is reused, not rebuilt. | R3b · C-04 |
-| Push an unprompted message into a customer's chat thread, keyed to their account, for any customer on app version C-01 or above, whatever channel their ticket came from — in the customer's own language. | R1b · T1 · T2 · T3 · C-01 |
+| Trigger the existing masked-calling workflow for a ticket, and tell whether masked calling is available for it. The workflow itself is reused, not rebuilt. | R3b |
+| Push an unprompted message into a customer's chat thread, keyed to their account, for any customer whose app can receive one, whatever channel their ticket came from — in the customer's own language. | R1b · T1 · T2 · T3 |
 | Send a contact card carrying a name and a call action, and re-send a fresh one whenever the assignee changes. | R3a · G1 · G6 · T3 |
 | Tell a restore candidate from a shifting one at the point the assignment event is handled — the event itself does not carry the distinction. | R7a · AC-REG-3 · AC-REG-4 |
 | Record, per chat message, whether it was delivered, suppressed as a duplicate, or failed — and which call route and contact source it carried. | MQ-1 · MQ-2 · MQ-3 · MQ-4 |
@@ -356,9 +345,6 @@ What the platform must be able to do for this feature to exist. Whether these ar
 | §1 M2 — target | −20% against the MQ-5 baseline | No baseline exists, so any target is a guess. Needs your number once MQ-5 reports. |
 | §3a P1 — precedence | Closure resolves before a simultaneous assign action | You decided "send everything, no suppression" for the ordinary case, but did not rule on the closure tie. Chosen to keep G5 absolute. |
 | §4 — Master design file | "No design file exists" | The chat message and PIN copy are production copy you supplied; the card is the existing create-ticket contact card. What is missing is a design file, not a design. |
-| §5 C-03 | Maximum chat messages per ticket, default no cap | You chose no suppression, so "no cap" matches your decision; the parameter exists so a runaway reassign loop can be capped without a code change. Delete it if you would rather have no cap at all. |
-| §5 — Interaction note (C-03 × G4) | Suppressed duplicates do not consume the cap | Follows from C-03 existing; unstated by you. |
-| §7 AC-CFG-2 | Behaviour when C-03 is reached | Exists only because C-03 was generated. Falls with it if you drop C-03. |
 
 ---
 
@@ -366,4 +352,4 @@ What the platform must be able to do for this feature to exist. Whether these ar
 
 | Rule overridden | What was done instead | Rationale | Approved by |
 |---|---|---|---|
-| L8 / J2 — every customer-facing moment sits inside a C-id window with a specified customer-visible state | C-02 carries no committed delivery target. The chat message is best-effort; latency is measured through MQ-4 but never promised, and T7 promises the customer no recovery. | PM decision in interview: a progress message does not warrant the retry and recovery engineering a committed window would force. Measuring it keeps the decision reversible — if MQ-4 shows chat messages arriving after resolution often enough to matter, C-02 can be given a real value without reopening the spec. | Ashish Raj, 11 Sep 2026 |
+| L8 / J2 — every customer-facing moment sits inside a C-id window with a specified customer-visible state | No delivery window is committed, and no configurable parameter defines one. The chat is best-effort; latency is measured through MQ-4 but never promised, and T7 promises the customer no recovery. | PM decision in interview: a progress message does not warrant the retry and recovery engineering a committed window would force. Measuring it keeps the decision reversible — if MQ-4 shows chats arriving after resolution often enough to matter, a committed window can be added without reopening the rest of the spec. | Ashish Raj, 11 Sep 2026 |
