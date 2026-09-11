@@ -13,7 +13,9 @@
 
 **Boundary.** This spec governs the chat notice sent to a customer when the **handler** of their service ticket is set or changes. It covers restore service tickets on every creation path — IVR, customer chat and Kapture-direct alike — and it is the customer's only new surface: the chat thread.
 
-It leaves unchanged: how a ticket is created, classified, deadlined, verified or closed; the CSP app and the actions in it; the existing CSP-side and technician-side notifications that already fire on the same events; the complaint chat intake gates and the resolution message the customer already receives. The masked-calling PIN workflow is reused unchanged: this spec decides when it fires, never what it says (§4 bubble 2). The shifting task family is out of scope. Notices reach customers on app version C-01 and above; below that the customer sees nothing new, and this spec does not add another channel to reach them (M1's ceiling, not a defect).
+It leaves unchanged: how a ticket is created, classified, deadlined, verified or closed; the CSP app and the actions in it; the existing CSP-side and technician-side notifications that already fire on the same events; the complaint chat intake gates and the resolution message the customer already receives. The masked-calling PIN workflow is reused unchanged: this spec decides when it fires, never what it says (§4 bubble 2).
+
+**Shifting is out of scope, and must be filtered out.** The `ES_RESTORE_TECHNICIAN_ASSIGNED` event does not distinguish task family, so without an explicit check a shifting customer would receive this feature by default — and the notice copy is complaint-framed ("आपकी शिकायत" / "Your complaint… resolving your issue"), which is wrong for a request to move a connection. Shifting already has its own customer workflows (`ticket_type_5_created`, `ticket_type_5_tat_breached`, `ticket_type_5_resolved`) and is already barred from the PIN and card path, which accepts only `NBREC`, `INSTALL` and `RESTORE`. Excluding it here is therefore consistent with how the estate already treats it. R7 makes the exclusion a requirement rather than an omission. **This leaves a known, deliberate gap**: 94% of shifting candidates are assigned a technician, a median 4.4 hours after creation, against a 96-hour TAT, and that customer is told nothing — the same problem this PRD solves for restore. It is V2 work, not a non-problem. Notices reach customers on app version C-01 and above; below that the customer sees nothing new, and this spec does not add another channel to reach them (M1's ceiling, not a defect).
 
 ### Guardrails — promises that hold on every path
 
@@ -48,6 +50,7 @@ It leaves unchanged: how a ticket is created, classified, deadlined, verified or
 | R4 | As Wiom, I want one notice per real change, so that the chat stays readable and the customer trusts each message. | **(a)** Remember which person the customer was last told about, per ticket. **(b)** Send nothing when an assign action names that same person. | Send two notices naming the same person in a row, however many times the action fires. |
 | R5 | As a customer, I want to hear that work has started, and to be able to call, even when Wiom cannot tell me the person's name. | **(a)** Send the notice unchanged — it never carries a name — and send the card with its call action intact but no name shown. | Put a different person's name on the card in place of the handler's. |
 | R6 | As Wiom, I want notices to stop when the ticket is done, so that a closed ticket never looks live. | **(a)** Generate no handler notice from an action that happens after the ticket reaches a terminal state. | Suppress a notice generated before closure merely because it will land after the resolution message. |
+| R7 | As a customer with a shifting request, I want not to be told my "complaint" is being resolved, because I did not report a fault. | **(a)** Send nothing on this path for any candidate whose task family is not restore — no notice, no PIN message, no card. | Rely on the absence of a rule to keep shifting out. The check is explicit, because the triggering event does not carry the distinction. |
 
 ---
 
@@ -57,7 +60,9 @@ It leaves unchanged: how a ticket is created, classified, deadlined, verified or
 
 ```mermaid
 flowchart TD
-    A["CSP acts on the ticket: takes it himself, assigns a technician, swaps technician, or recalls"] --> B{"Ticket already in a terminal state?"}
+    A["CSP acts on the ticket: takes it himself, assigns a technician, swaps technician, or recalls"] --> A2{"Is this a restore task?"}
+    A2 -- "No — shifting" --> A3["Nothing sent — outside this spec (§1 Boundary, R7a)"]
+    A2 -- "Yes" --> B{"Ticket already in a terminal state?"}
     B -- "Yes" --> C["T6 — no notice"]
     B -- "No" --> D{"Has the customer been told about a handler yet?"}
     D -- "No" --> D2{"Did the CSP take it himself?"}
@@ -85,6 +90,8 @@ flowchart TD
 ### 3b. State transition table — canon
 
 Lifecycle of a **notified handler** (created the first time the customer is told who is working on their service ticket; one per ticket). The ticket's own lifecycle — creation, classification, deadline, verification, closure — and the CSP's execution states are out of scope; they appear here only as triggers.
+
+**Precondition for every row below:** the candidate is a restore task. A shifting candidate never enters this lifecycle at all (R7a, §3a).
 
 | ID | From | Action / Trigger | Rule / Check | To | Side-effects |
 |---|---|---|---|---|---|
@@ -266,7 +273,8 @@ Worked data used throughout: customer **Sunita Devi**, account `WN4471203`, tick
 |---|---|---|---|
 | AC-REG-1 | **Given** Imran Sheikh is assigned to ticket 1787745414303000, **When** the assignment happens, **Then** the notifications Ramesh Kumar and Imran already receive today on the CSP and technician apps fire exactly as before, unchanged in content and timing. | §1 Boundary | Settled |
 | AC-REG-2 | **Given** Sunita opens chat and reports a new internet problem while ticket 1787745414303000 is already open, **When** the complaint flow runs, **Then** she gets the existing open-ticket response and engineer callback exactly as today — handler notices change nothing about intake. | §1 Boundary | Settled |
-| AC-REG-3 | **Given** a shifting task is assigned to a technician, **When** the assignment happens, **Then** no handler notice is sent — shifting is out of scope. | §1 Boundary | Settled |
+| AC-REG-3 | **Given** a shifting candidate on ticket 1789109630110000, **When** a technician is assigned to it, **Then** no handler notice, no PIN message and no card are sent — and the customer's existing `ticket_type_5_*` workflows fire exactly as they do today. | R7a · §1 Boundary | Settled |
+| AC-REG-4 | **Given** the same shifting candidate, **When** the `ES_RESTORE_TECHNICIAN_ASSIGNED` event for it reaches this feature, **Then** it is discarded on the task-family check — the event arriving is not by itself sufficient to send anything. | R7a · R7 MUST NOT | Settled |
 
 ### RACE — Precedence (P1, P2)
 
@@ -332,6 +340,7 @@ What the platform must be able to do for this feature to exist. Whether these ar
 | Trigger the existing masked-calling workflow for a ticket, and tell whether masked calling is available for it. The workflow itself is reused, not rebuilt. | R3b · C-04 |
 | Push an unprompted message into a customer's chat thread, keyed to their account, for any customer on app version C-01 or above, whatever channel their ticket came from — in the customer's own language. | R1b · T1 · T2 · T3 · C-01 |
 | Send a contact card carrying a name and a call action, and re-send a fresh one whenever the assignee changes. | R3a · G1 · G6 · T3 |
+| Tell a restore candidate from a shifting one at the point the assignment event is handled — the event itself does not carry the distinction. | R7a · AC-REG-3 · AC-REG-4 |
 | Record, per notice, whether it was delivered, suppressed as a duplicate, or failed — and which call route and contact source it carried. | MQ-1 · MQ-2 · MQ-3 · MQ-4 |
 | Count customer contacts against a ticket, before and after the first notice. This does not exist today: the warehouse column intended for it is null for every row. | MQ-5 · M2 |
 
