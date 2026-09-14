@@ -1,7 +1,9 @@
-# Service Ticket Chat — tradeoff log
+# Service Ticket Chat — tradeoffs register
 
-Running log from the interview of 11 Sep 2026. Becomes the tradeoffs register at finalise.
-Every row is a decision Ashish made against presented options.
+The decisions behind the PRD, signed off 14 Sep 2026. Every row is a decision Ashish made
+against options that were put to him, with the reason he gave. Kept alongside the PRD, not
+inside it: when someone asks in six months why the chat fires on every action rather than
+every change of person, or why shifting is excluded, the answer is here without archaeology.
 
 | # | Decision point | Chosen | Rejected options | Why (PM's stated reason) | Date |
 |---|---|---|---|---|---|

@@ -8,7 +8,7 @@ When the assignee on a service ticket is set or changes, trigger the customer ch
 | File | What it is |
 |---|---|
 | `Service_Ticket_Handler_Notice_PRD.md` | The PRD. Wiom Template v3. **The single source of truth.** |
-| `Service_Ticket_Handler_Notice_Tradeoffs.md` | The twelve decisions behind it, the measurements they were made against, and the code facts the spec rests on. |
+| `Service_Ticket_Handler_Notice_Tradeoffs.md` | The 16 decisions behind it, the measurements they were made against, and the code facts the spec rests on. |
 | `index.html` | Renders the markdown live from this repo. Holds no content of its own. |
 
 ## How to change the document
@@ -27,12 +27,11 @@ no document text. If the two ever disagree, the markdown is right and the page h
 
 ## Status
 
-v0.2 Draft. Lint-clean against the Wiom PRD checklist — 0 errors, 0 warnings, 1 recorded override.
+**v1.0 — signed off 14 Sep 2026.** Reviewer: Akash. Consulted: Rahul (CSP execution), Akash
+(customer chat).
 
-Blocking sign-off:
+Lint clean against the Wiom PRD checklist: every lettered obligation, MUST NOT, transition and
+guardrail is covered by an acceptance criterion, and one override is recorded — no committed
+delivery window, measured through MQ-4 instead.
 
-1. No design file exists for the chat or its contact card.
-2. M1's denominator — customers who cannot receive a chat sit outside it — needs confirming.
-
-The `AI-generated content for review` section at the foot of the PRD lists every value that was
-filled rather than decided. Those are the PM's worklist; the page badges them.
+Nothing in the PRD is unconfirmed: the review section is gone and no placeholder values remain.

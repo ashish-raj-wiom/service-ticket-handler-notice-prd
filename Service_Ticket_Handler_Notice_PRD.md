@@ -2,8 +2,8 @@
 
 | | | | |
 |---|---|---|---|
-| **Owner** — Ashish Raj (PM) | **Reviewer** — Akash | **Status** — Draft | **Sign-off** — Pending |
-| **Version** — v0.2 · 14 Sep 2026 | **Consulted — CSP execution (TAS)** — Rahul | **Consulted — Customer chat** — Akash | |
+| **Owner** — Ashish Raj (PM) | **Reviewer** — Akash | **Status** — Signed off | **Sign-off** — Signed off · 14 Sep 2026 |
+| **Version** — v1.0 · 14 Sep 2026 | **Consulted — CSP execution (TAS)** — Rahul | **Consulted — Customer chat** — Akash | |
 
 ---
 
@@ -32,7 +32,7 @@ It leaves unchanged: how a ticket is created, classified, deadlined, verified or
 
 | ID | Metric | Baseline | Target | Source |
 |---|---|---|---|---|
-| M1 | Of tickets that reach an assignee and whose customer can receive a chat ⚠️ *AI GENERATED — review*, the share where at least one chat arrived before the resolution message | 0% — new capability | **> 99%** | MQ-1 |
+| M1 | Of tickets that reach an assignee and whose customer can receive a chat, the share where at least one chat arrived before the resolution message | 0% — new capability | **> 99%** | MQ-1 |
 
 **Counted alongside M1, not inside it:** the share of tickets reaching an assignee whose customer could not receive a chat at all. They are outside M1's denominator, so this keeps them from disappearing (MQ-1).
 
@@ -91,9 +91,9 @@ Lifecycle of **who the customer has been told about** — one per ticket, create
 
 | ID | From | Action / Trigger | Rule / Check | To | Side-effects |
 |---|---|---|---|---|---|
-| T1 | — | CSP takes the ticket himself | Ticket not in a terminal state | Told about the CSP | Chat triggered (R1a); contact card sent naming the CSP, preceded by the PIN message inside the cohort (R2a, R2b) or on its own outside it (R2c); the CSP is now who the customer has been told about (R1a). |
-| T2 | — | CSP assigns a technician, no chat sent yet | Ticket not in a terminal state | Told about the technician | Chat triggered (R1a); contact card sent naming the technician, per R2a–R2d; the technician is now who the customer has been told about (R1a). |
-| T3 | Told about X | Any further assign action: a different technician, the CSP recalling the job off X, **or X assigned again** | Ticket not in a terminal state | Told about the person just assigned | Chat triggered again, same copy (R1a, R1b); **a fresh contact card sent naming the new assignee**, route re-resolved for them (R2a–R2d, G6), so the newest card in the thread is always the current person (G1); the new person is now who the customer has been told about (R1a). |
+| T1 | — | CSP takes the ticket himself | Ticket not in a terminal state | Told about the CSP | Chat triggered (R1a); contact card sent naming the CSP, preceded by the PIN message where masked calling is available (R2a, R2b) or on its own where it is not (R2c). |
+| T2 | — | CSP assigns a technician, no chat sent yet | Ticket not in a terminal state | Told about the technician | Chat triggered (R1a); contact card sent naming the technician, per R2a–R2d. |
+| T3 | Told about X | Any further assign action: a different technician, the CSP recalling the job off X, **or X assigned again** | Ticket not in a terminal state | Told about the person just assigned | Chat triggered again, same copy (R1a, R1b); **a fresh contact card sent naming the new assignee**, route re-resolved for them (R2a–R2d, G6), so the newest card in the thread is always the current person (G1). |
 | T4 | Told about X | One assign action reaching the system a second time — a double tap, a client retry, a redelivered event | The action has already been processed | Told about X (unchanged) | **No second chat** (R1e, G4) — the first one already went. Recorded as a duplicate so MQ-1 can tell it from a failure. Telling one action's duplicate from two real actions is the implementer's; the promise is one chat per action. |
 | T5 | Told about X, or nobody yet | Ticket reaches COMPLETED or CANCELLED | — | Closed | No side-effect of its own. Chats already triggered still deliver (P2, R3 MUST NOT). |
 | T6 | Closed | Any later assign, swap or recall action | — | Closed | **No chat triggered** (R3a, G5). |
@@ -116,7 +116,7 @@ Lifecycle of **who the customer has been told about** — one per ticket, create
 
 **Experience intent:** the customer should feel accompanied — a real person, named, now has this, and reaching them is one tap away.
 
-**Master design file:** ⚠️ *AI GENERATED — review* **Not yet created.** No design file exists. The copy below is the message already in production; the card's visual treatment is the existing contact card used by the create-ticket flow.
+**Master design file:** none, and none is needed. This feature introduces no new visual design: the chat copy below is already in production, and the card is the existing contact card the create-ticket flow already sends. What changes about the card is behaviour, not appearance — no stand-in name, and no card at all without a working route — and that is specified in §9, not in a design file.
 
 Each time the assignee is set or changes, the customer gets **two or three messages**, in this order:
 
@@ -188,7 +188,7 @@ Three numbers touch it, and none of them is ours to set:
 | The PIN, and the ticket type used to request it | The masked-calling workflow, reused unchanged (§1 Boundary, §4, message 2). |
 | Delivery speed | Not committed at all. Best effort, measured through MQ-4 and never promised — see Override O1. |
 
-There is no cap on how many chats one ticket may send. A chat follows every genuine change of assignee by decision, and duplicates are suppressed by person rather than by count (R1e, G4).
+There is no cap on how many chats one ticket may send. A chat follows every assign action by decision, and a repeat of one action is set aside by recognising the action — not by counting chats, and not by comparing who was assigned (R1e, G4).
 
 ---
 
@@ -349,15 +349,6 @@ What the platform must be able to do for this feature to exist. Whether these ar
 | Show no name on the card when the person cannot be resolved, rather than a stand-in, **and** send no card at all when no route resolves. The existing card workflow does neither today: it substitutes a default name, and it sends a card with an empty number. Both are changes to that workflow, not reuses of it. | R2e · R2 MUST NOT (d) · R2d · G2 |
 | Read the candidate's task family at the point the assignment event is handled, and act only on `RESTORE`. The event does not carry the field, and the two families share a service and a record shape, so nothing else distinguishes them. | R1 MUST NOT (d) · AC-REG-3 · AC-REG-4 |
 | Record, per chat message, whether it was delivered, suppressed as a duplicate, or failed — and which call route and contact source it carried. | MQ-1 · MQ-2 · MQ-3 · MQ-4 |
-
----
-
-## AI-generated content for review
-
-| Location | What was generated | Basis |
-|---|---|---|
-| §1 M1 — denominator | "tickets that reach an assignee **and whose customer can receive a chat**" | You set the target at > 99%. Customers on an app too old to receive a chat would otherwise make that unreachable through no fault of the build, so they sit outside the denominator and are counted separately. Say if you want them counted as misses instead. |
-| §4 — Master design file | "No design file exists" | The chat message and PIN copy are production copy you supplied; the card is the existing create-ticket contact card. What is missing is a design file, not a design. |
 
 ---
 
