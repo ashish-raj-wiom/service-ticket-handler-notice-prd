@@ -27,14 +27,12 @@ no document text. If the two ever disagree, the markdown is right and the page h
 
 ## Status
 
-v0.1 Draft. Lint-clean against the Wiom PRD checklist — 0 errors, 0 warnings, 1 recorded override.
+v0.2 Draft. Lint-clean against the Wiom PRD checklist — 0 errors, 0 warnings, 1 recorded override.
 
 Blocking sign-off:
 
-1. No engineering reviewer named.
-2. No consulted parties named for TAS, chat or IVR.
-3. No design file exists for the chat or its contact card.
-4. Two rules contradict the live `call_technician_card` workflow — see the tradeoff log.
+1. No design file exists for the chat or its contact card.
+2. M1's denominator — customers who cannot receive a chat sit outside it — needs confirming.
 
 The `AI-generated content for review` section at the foot of the PRD lists every value that was
 filled rather than decided. Those are the PM's worklist; the page badges them.
