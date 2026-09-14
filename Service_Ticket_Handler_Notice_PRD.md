@@ -32,9 +32,9 @@ It leaves unchanged: how a ticket is created, classified, deadlined, verified or
 
 | ID | Metric | Baseline | Target | Source |
 |---|---|---|---|---|
-| M1 | Service tickets where the customer received at least one chat message before the resolution message | 0% — new capability | ≥ 90% of tickets that reach an assignee ⚠️ *AI GENERATED — review* | MQ-1 |
-| M2 | Repeat customer contacts per ticket after the first chat message | **unmeasured** — repeat contacts are not captured against any ticket today; MQ-5 must build this before M2 can be read | −20% against the baseline MQ-5 establishes ⚠️ *AI GENERATED — review* | MQ-5 |
-| M3 | Cards whose call action the customer used | n/a — new capability | Observed, not targeted | MQ-3 |
+| M1 | Of tickets that reach an assignee and whose customer can receive a chat ⚠️ *AI GENERATED — review*, the share where at least one chat arrived before the resolution message | 0% — new capability | **> 99%** | MQ-1 |
+
+**Counted alongside M1, not inside it:** the share of tickets reaching an assignee whose customer could not receive a chat at all. They are outside M1's denominator, so this keeps them from disappearing (MQ-1).
 
 **Invariant (not a metric):** G3 cards carrying a name or number from anything but the live contact record = 0, zero tolerance. Monitored via MQ-3, not trended.
 
@@ -200,11 +200,10 @@ There is no cap on how many chats one ticket may send. A chat follows every genu
 
 | ID | The system must be able to answer… | Feeds |
 |---|---|---|
-| MQ-1 | For each service ticket: how many chats were triggered, who each card named, and for each one whether it was delivered, suppressed as a duplicate, or failed to deliver. | M1 · G4 · G5 |
+| MQ-1 | For each service ticket: how many chats were triggered, who each card named, whether each was delivered, was a duplicate, or failed — and whether the customer could receive one at all. | M1 · G4 · G5 |
 | MQ-2 | For each card: whether the person it named was the assignee at the moment the action occurred. | G1 |
-| MQ-3 | For each card: whether it was sent, whom it named, which route it carried (masked, direct, or none), which record the name and number came from, and whether the call reached the person named. | G2 · G3 invariant · G6 · M3 |
+| MQ-3 | For each card: whether it was sent, whom it named, which route it carried (masked, direct, or none), which record the name and number came from, and whether the call reached the person named. | G2 · G3 invariant · G6 |
 | MQ-4 | For each delivered chat message: the time between the CSP's action and the chat appearing in the thread. | Override O1 — measured, never committed |
-| MQ-5 | For each ticket: how many times the customer contacted us about it, split before and after the first chat message — and the same figure for tickets that received no chat message. | M2, including its missing baseline |
 
 ---
 
@@ -353,7 +352,6 @@ What the platform must be able to do for this feature to exist. Whether these ar
 | Send a contact card carrying a name and a call action, and re-send a fresh one whenever the assignee changes. | R3a · G1 · G6 · T3 |
 | Read the candidate's task family at the point the assignment event is handled, and act only on `RESTORE`. The event does not carry the field, and the two families share a service and a record shape, so nothing else distinguishes them. | R7a · AC-REG-3 · AC-REG-4 |
 | Record, per chat message, whether it was delivered, suppressed as a duplicate, or failed — and which call route and contact source it carried. | MQ-1 · MQ-2 · MQ-3 · MQ-4 |
-| Count customer contacts against a ticket, before and after the first chat message. This does not exist today — nothing captures it for any ticket. | MQ-5 · M2 |
 
 ---
 
@@ -363,8 +361,7 @@ What the platform must be able to do for this feature to exist. Whether these ar
 |---|---|---|
 | Header — Reviewer | "TBD" | No engineering reviewer named in the interview. Blocks sign-off (L15). |
 | Header — Consulted (3 cells) | CSP execution (TAS), Customer chat, IVR / masked calling | Inferred from the three systems this feature touches. You named no consulted parties. |
-| §1 M1 — target | ≥ 90% of tickets that reach an assignee | Derived from measurement: 95% of restore candidates reach an assignee state, so 95% is the structural ceiling; 90% leaves room for the T7 envelope. You set no target. |
-| §1 M2 — target | −20% against the MQ-5 baseline | No baseline exists, so any target is a guess. Needs your number once MQ-5 reports. |
+| §1 M1 — denominator | "tickets that reach an assignee **and whose customer can receive a chat**" | You set the target at > 99%. Customers on an app too old to receive a chat would otherwise make that unreachable through no fault of the build, so they sit outside the denominator and are counted separately. Say if you want them counted as misses instead. |
 | §3a P1 — precedence | Closure resolves before a simultaneous assign action | You decided "send everything, no suppression" for the ordinary case, but did not rule on the closure tie. Chosen to keep G5 absolute. |
 | §4 — Master design file | "No design file exists" | The chat message and PIN copy are production copy you supplied; the card is the existing create-ticket contact card. What is missing is a design file, not a design. |
 

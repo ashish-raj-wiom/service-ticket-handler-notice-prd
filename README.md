@@ -29,13 +29,12 @@ no document text. If the two ever disagree, the markdown is right and the page h
 
 v0.1 Draft. Lint-clean against the Wiom PRD checklist — 0 errors, 0 warnings, 1 recorded override.
 
-Four things block sign-off:
+Blocking sign-off:
 
 1. No engineering reviewer named.
 2. No consulted parties named for TAS, chat or IVR.
-3. No design exists for the chat or its contact card.
-4. M2 has no baseline — repeat contacts are not captured against any ticket today, so the
-   rate cannot be read before or after.
+3. No design file exists for the chat or its contact card.
+4. Two rules contradict the live `call_technician_card` workflow — see the tradeoff log.
 
 The `AI-generated content for review` section at the foot of the PRD lists every value that was
 filled rather than decided. Those are the PM's worklist; the page badges them.
