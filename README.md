@@ -34,7 +34,7 @@ Four things block sign-off:
 1. No engineering reviewer named.
 2. No consulted parties named for TAS, chat or IVR.
 3. No design exists for the chat or its contact card.
-4. M2 has no baseline — `NO_TIMES_CUSTOMER_CALLED` is null for every row, so repeat-contact
+4. M2 has no baseline — repeat contacts are not captured against any ticket today, so the
    rate cannot be read before or after.
 
 The `AI-generated content for review` section at the foot of the PRD lists every value that was
